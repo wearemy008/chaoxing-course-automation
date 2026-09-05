@@ -1,0 +1,24 @@
+{
+  "name": "chaoxing-course-automation",
+  "version": "1.0.0",
+  "description": "超星泛雅/学习通教师端课程自动化 CLI：建章节、批量写正文、智能导入题库、发布讨论话题、平台资源检索入库",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "cx": "bin/cx.js"
+  },
+  "scripts": {
+    "postinstall": "node -e \"console.log('安装完成。运行 node bin/cx.js help 查看用法')\"",
+    "start": "node bin/cx.js"
+  },
+  "dependencies": {
+    "playwright-core": "^1.49.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "chaoxing", "chaoxing", "fanya", "moodle", "playwright",
+    "course-automation", "quiz-import", "education", "cli"
+  ]
+}

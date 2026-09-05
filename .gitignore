@@ -1,0 +1,7 @@
+node_modules/
+state/
+*.log
+_videowork/
+_work/
+__pycache/
+.DS_Store
