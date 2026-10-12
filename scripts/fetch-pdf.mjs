@@ -2,8 +2,11 @@
  * 从超星取各章 PPT 的 PDF 预览版（用于渲染成视频画面）
  *
  * 用法：
- *   node fetch-pdf.mjs --course=265670555 --clazz=150967074 --oids=ppt-oids.json --out=pdf/bangong
- *   node fetch-pdf.mjs --course=265670558 --clazz=150967079 --oids=ppt-oids-kj.json --out=pdf/kongshu --kj
+ *   node fetch-pdf.mjs --course=<courseId> --clazz=<clazzId> --cpi=<cpi> --oids=ppt-oids.json --out=pdf/ch1
+ *   node fetch-pdf.mjs --course=<courseId> --clazz=<clazzId> --cpi=<cpi> --oids=ppt-oids.json --out=pdf/ch1 --kj
+ *
+ *   --cpi 也可省略，改用 --course=<courses.json 别名> 从 courses.json 读取。
+ *   --kj   表示 oids 文件是「按章一组 oid」的结构（空数课程 0-based 章号 +1）
  *
  * 说明：必须在章节编辑器页上下文内 fetch /ananas/status/{oid}（独立 request 返回 {}）；
  *       下载 PDF 时 Referer 必带，否则 403。
@@ -12,6 +15,7 @@ import { chromium } from 'playwright-core';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadCourse } from './cx-config.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const argv = Object.fromEntries(process.argv.slice(2).map((s) => {
@@ -20,9 +24,11 @@ const argv = Object.fromEntries(process.argv.slice(2).map((s) => {
   return [s.slice(2, i), s.slice(i + 1)];
 }));
 
-const COURSE = argv.course || die('缺 --course');
-const CLAZZ = argv.clazz || die('缺 --clazz');
-const CPI = '110496162';
+// 允许 --course 传 courses.json 别名，三件套从配置读取
+const ALIAS = argv.course && !/^\d+$/.test(argv.course) ? loadCourse(argv.course) : null;
+const COURSE = ALIAS ? ALIAS.courseId : (argv.course || die('缺 --course'));
+const CLAZZ = argv.clazz || (ALIAS && ALIAS.clazzId) || die('缺 --clazz');
+const CPI = argv.cpi || (ALIAS && ALIAS.cpi) || die('缺 --cpi（或在 courses.json 中配置）');
 const OIDS_FILE = path.join(__dirname, argv.oids || die('缺 --oids'));
 const OUT_DIR = path.join(__dirname, argv.out || die('缺 --out'));
 const IS_KJ = 'kj' in argv;

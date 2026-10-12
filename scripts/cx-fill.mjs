@@ -5,7 +5,7 @@
  *   node cx-fill.mjs --course=123456789 --clazz=987654321 --cpi=110000000 \
  *                    --map=chapter-map.json --marker=本章拓展资源
  *
- * map 文件格式：{ "1231342532": "<h3>...</h3>", "1231339466": "<h3>...</h3>" }
+ * map 文件格式：{ "1234567890": "<h3>...</h3>", "1234567891": "<h3>...</h3>" }
  *   键 = 章节节点 knowledgeId，值 = 要写入的 HTML
  *   也可以用 --nodes=1,2,3 配合 --html=block.html（所有节点写同一段 HTML）
  *
