@@ -1,28 +1,34 @@
-/** 知识图谱六板块填充（通用版）：读 bangong-graph-fill.json 写入指定课程
- *  用法：node graph-fill-generic.mjs bangong  或  node graph-fill-generic.mjs kongjian
+/** 知识图谱六板块填充：读 <course>-graph-fill.json 写入指定课程
+ *  用法：node cx-graph-fill.mjs <course>
+ *  输入：scripts/<course>-graph-fill.json（由 gen-graph.py 生成），结构 { nodes, levels, questions, targets }
  *  幂等：标签取并集、desc 空才写、classify=0 才写；问题按标题查重
+ *
+ *  ⚠️ 课程三件套来自 scripts/courses.json（参考 courses.example.json）。
+ *  ⚠️ stat2 域：course-target/*、question-map/* 端点必须不带 enc + clazzid='0'（带 enc 会 403）。
  */
 import { chromium } from 'playwright-core';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadCourse } from './cx-config.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STATE = process.env.CX_STATE || path.join(__dirname, 'auth-state.json');
 const CHROME = process.env.CX_CHROME || 'C:\\Users\\admin\\.agent-browser\\browsers\\chrome-152.0.7977.82\\chrome.exe';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const CPI = '110496162';
 const S2 = 'https://stat2-ans.chaoxing.com';
-const LAB = { zhongdian: '24283664', nandian: '24283665', kaodian: '24283666', sizheng: '24283667' };
+// 标签 id：不同机构可能不同，可用 env CX_GRAPH_LABELS 覆盖（JSON）
+const LAB = (() => { try { return JSON.parse(process.env.CX_GRAPH_LABELS || '{}'); } catch { return {}; } })();
+const LABELS = { zhongdian: '24283664', nandian: '24283665', kaodian: '24283666', sizheng: '24283667', ...LAB };
 
-const WHICH = process.argv[2] || 'bangong';
-const CFG = {
-  bangong: { courseId: '265670555', clazzId: '150967074', dataFile: 'bangong-graph-fill.json', tag: 'bangong' },
-  kongjian: { courseId: '265670558', clazzId: '150967079', dataFile: 'kongjian-graph-fill.json', tag: 'kongjian' },
-}[WHICH];
-if (!CFG) { console.error('unknown course'); process.exit(1); }
+const WHICH = (process.argv[2] || '').trim();
+const CFG = loadCourse(WHICH);
+if (!CFG) { console.error(`未知课程「${WHICH}」：请在 scripts/courses.json 中配置（参考 courses.example.json）`); process.exit(1); }
+const CPI = CFG.cpi;
+const DATA_FILE = CFG.graphDataFile || `${WHICH}-graph-fill.json`;
+const SET_TITLE = CFG.targetSetTitle || `${CFG.name}·五会能力`;
 
-const DATA = JSON.parse(fs.readFileSync(path.join(__dirname, CFG.dataFile), 'utf8'));
+const DATA = JSON.parse(fs.readFileSync(path.join(__dirname, DATA_FILE), 'utf8'));
 const OUT = { course: WHICH, switches: [], levels: [], questions: [], targets: [], nodes: { ok: 0, skip: 0, fail: 0, detail: {} }, errors: [] };
 
 const browser = await chromium.launch({ executablePath: CHROME, headless: true, args: ['--disable-blink-features=AutomationControlled'], ignoreDefaultArgs: ['--enable-automation'], locale: 'zh-CN' });
@@ -86,7 +92,7 @@ for (const nid of nodeIds) {
   const cur = J(await g('/mooc2-ans/coursetopic/gettopicdetail', { courseid: CFG.courseId, clazzid: CFG.clazzId, cpi: CPI, ut: 't', modelId: '0', topicId: nid, enc: ENC }));
   const cd = cur?.data || {};
   const haveLabels = String(cd.topicLabelIds || cd.labelIds || '').split(',').filter(Boolean);
-  const wantLabels = (nd.labels || []).map((l) => LAB[l]).filter(Boolean);
+  const wantLabels = (nd.labels || []).map((l) => LABELS[l]).filter(Boolean);
   const mergedLabels = [...new Set([...haveLabels, ...wantLabels])];
   const curDesc = String(cd.topicDesc || '').trim();
   const curClassify = String(cd.classify || '0');
@@ -138,10 +144,9 @@ for (const [name, desc, topics] of DATA.targets) {
   OUT.targets.push({ name, resp: r.body.slice(0, 100) });
   await sleep(1400);
 }
-// 能力集标题（正确端点：/stat2/course-target/knowledge/saveTargetSetTitle，标题限 ≤10 字符）
-const setTitle = WHICH === 'bangong' ? '办公空间·五会能力' : '数字表现·五会能力';
-const rt = await p2(`${S2}/stat2/course-target/knowledge/saveTargetSetTitle`, { courseid: CFG.courseId, clazzid: '0', cpi: CPI, modelId: '0', title: setTitle });
-OUT.targetSetTitle = { title: setTitle, resp: rt.body.slice(0, 100) };
+// 能力集标题（端点：/stat2/course-target/knowledge/saveTargetSetTitle，标题限 ≤10 字符）
+const rt = await p2(`${S2}/stat2/course-target/knowledge/saveTargetSetTitle`, { courseid: CFG.courseId, clazzid: '0', cpi: CPI, modelId: '0', title: SET_TITLE });
+OUT.targetSetTitle = { title: SET_TITLE, resp: rt.body.slice(0, 100) };
 
 fs.writeFileSync(path.join(__dirname, `graph-fill-${WHICH}.json`), JSON.stringify(OUT, null, 2));
 console.log('DONE', WHICH, 'nodes ok=' + OUT.nodes.ok, 'skip=' + OUT.nodes.skip, 'fail=' + OUT.nodes.fail, 'q=' + OUT.questions.length, 't=' + OUT.targets.length);

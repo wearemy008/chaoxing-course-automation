@@ -20,6 +20,8 @@ pdf/
 
 # 登录态与个人数据（含 Cookie，切勿提交）
 auth-state.json
+courses.json
+*-graph-fill.json
 *-result.json
 *-progress.json
 *roster*.json

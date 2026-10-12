@@ -1,36 +1,36 @@
 /**
  * 任务引擎批量发布：把已有任务发放到指定班级
- * 用法: node task-publish-all.mjs <course> [startCh] [endCh]
+ * 用法: node cx-task-publish.mjs <course> [startCh] [endCh]
  * 输出: task-pub-all-<course>.json  + _task-pub-<course>.log
  *
- * 链路（2026-10-09 逆向）：
+ * 链路：
  *  1. 列表页 GET /task/getTaskDataLists?courseId=X → [{taskId, name, targetList, publishStatus}]
  *  2. 逐任务进详情 /task/taskList?taskId=<enc>&flag=true&courseId=X
- *  3. 点「发布」(.xbutton.linear.publish) → POST /taskReference/coursePublishAuthentication
+ *  3. 点「发布」→ POST /taskReference/coursePublishAuthentication
  *     → 返回发布插件 URL: mooc2-ans.chaoxing.com/mooc2-ans/exam/test/publish-plugin?courseid=X&cpi=Y
  *  4. 该 URL 以 iframe 弹窗形式注入，帧内 DOM 与作业发放同构：
  *     a.classitem.newClassItem[data=<clazzid>] + span.class_check → 点 class_check
  *     确定按钮 .jb_btn.jb_btn_92
+ *
+ *  ⚠️ 课程三件套来自 scripts/courses.json（参考 courses.example.json）。
  */
 import { chromium } from 'playwright-core';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadCourse } from './cx-config.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CHROME = process.env.CX_CHROME || 'C:\\Users\\admin\\.agent-browser\\browsers\\chrome-152.0.7977.82\\chrome.exe';
 const STATE = process.env.CX_STATE || path.join(__dirname, 'auth-state.json');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const COURSE = (process.argv[2] || 'bangong').trim();
+const COURSE = (process.argv[2] || '').trim();
 const START_CH = parseInt(process.argv[3] || '1', 10);
 const END_CH = parseInt(process.argv[4] || '99', 10);
 
-const CMAP = {
-  bangong: { c: '265670555', k: '156694092', p: '110496162', cls: '1班', name: '办公空间设计' },
-  kongjian: { c: '265670558', k: '156695612', p: '110496162', cls: '2班', name: '空间数字化表现' },
-};
-const CFG = CMAP[COURSE];
+const CFG = loadCourse(COURSE);
+if (!CFG) { console.error(`未知课程「${COURSE}」：请在 scripts/courses.json 中配置（参考 courses.example.json）`); process.exit(1); }
 const LOG = path.join(__dirname, `_task-pub-${COURSE}.log`);
 const logger = (m) => { const s = `[${new Date().toLocaleTimeString('zh-CN', { hour12: false })}] ${m}\n`; fs.appendFileSync(LOG, s); console.log(m); };
 
@@ -39,16 +39,16 @@ const ctx = await browser.newContext({ storageState: STATE, viewport: { width: 1
 const p = await ctx.newPage();
 p.on('dialog', (d) => d.accept().catch(() => {}));
 
-const RESULT = { course: COURSE, clazz: CFG.cls, clazzId: CFG.k, items: [] };
+const RESULT = { course: COURSE, clazz: CFG.cls, clazzId: CFG.clazzId, items: [] };
 
 // 1. 拿任务列表
-await p.goto(`https://task.chaoxing.com/task/index?courseId=${CFG.c}&clazzId=${CFG.k}&cpi=${CFG.p}&enc=-1`, { waitUntil: 'domcontentloaded', timeout: 90000 });
+await p.goto(`https://task.chaoxing.com/task/index?courseId=${CFG.courseId}&clazzId=${CFG.clazzId}&cpi=${CFG.cpi}&enc=-1`, { waitUntil: 'domcontentloaded', timeout: 90000 });
 await sleep(11000);
 const list = await p.evaluate(async ({ cid }) => {
   const r = await fetch(`/task/getTaskDataLists?searchKey=&flag=true&courseId=${cid}&isDel=0&page=1&pageSize=50`, { credentials: 'include' });
   const j = await r.json();
   return (j.data || []).map((x) => ({ taskId: x.taskId, name: x.name, publishStatus: x.publishStatus, students: x.taskStudentsNumber, targetList: (x.targetList || []).length }));
-}, { cid: CFG.c });
+}, { cid: CFG.courseId });
 logger(`任务总数 ${list.length}`);
 
 // 按章节号过滤 + 排序（升序做）
@@ -66,7 +66,7 @@ for (const t of targets) {
     // 已发布且目标数>0 → 跳过（幂等）
     if (t.publishStatus && t.targetList > 0) { skip++; logger(`SKIP ${tag} (已发布 ${t.targetList} 个对象)`); RESULT.items.push({ ch, name: t.name, status: 'skip' }); continue; }
 
-    await p.goto(`https://task.chaoxing.com/task/taskList?taskId=${encodeURIComponent(t.taskId)}&flag=true&courseId=${CFG.c}`, { waitUntil: 'domcontentloaded', timeout: 90000 });
+    await p.goto(`https://task.chaoxing.com/task/taskList?taskId=${encodeURIComponent(t.taskId)}&flag=true&courseId=${CFG.courseId}`, { waitUntil: 'domcontentloaded', timeout: 90000 });
     await sleep(13000);
 
     // 点「发布」
@@ -91,7 +91,7 @@ for (const t of targets) {
         if (chk) { chk.click(); return 'ok:' + chk.className; }
       }
       return 'no-check';
-    }, CFG.k).catch((e) => 'err:' + e.message.slice(0, 60));
+    }, CFG.clazzId).catch((e) => 'err:' + e.message.slice(0, 60));
     await sleep(1200);
 
     // 点「确定」
@@ -107,7 +107,7 @@ for (const t of targets) {
       const j = await r.json();
       const it = (j.data || []).find((x) => x.taskId === tid);
       return it ? { publishStatus: it.publishStatus, students: it.taskStudentsNumber, targetLen: (it.targetList || []).length, targets: (it.targetList || []).map((y) => y.name || y.id || '').slice(0, 5) } : null;
-    }, { cid: CFG.c, tid: t.taskId }).catch(() => null);
+    }, { cid: CFG.courseId, tid: t.taskId }).catch(() => null);
 
     if (after && after.publishStatus) { ok++; logger(`OK   ${tag} → published=${after.publishStatus} students=${after.students} targets=${JSON.stringify(after.targets)}`); RESULT.items.push({ ch, name: t.name, status: 'ok', pick, confirmed, after }); }
     else { fail++; logger(`FAIL ${tag} pick=${pick} confirm=${confirmed} after=${JSON.stringify(after)}`); RESULT.items.push({ ch, name: t.name, status: 'fail', pick, confirmed, after }); }

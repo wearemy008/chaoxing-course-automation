@@ -69,6 +69,13 @@
 - `references/api.md` 全面重写为 **10 节接口全表 + 40 条踩坑总表**，新增视频上传、考试、任务引擎、知识图谱、视频合成管线、逆向方法论
 - `SKILL.md` / `README.md` 重写为全流程导航
 
+### 可移植性
+
+- 全部脚本支持 `CX_CHROME` / `CX_STATE` / `CX_COURSES` 环境变量，路径不再硬编码
+- 新增 `scripts/cx-config.mjs` + `courses.example.json`：课程三件套改为从 `courses.json` 读取（已 gitignore）
+- `gen-graph.py` 重写为通用模板（去项目专属逻辑），`video_all.py` 课程键从 manifest 动态推导
+- `video_manifest.example.py` / `courses.example.json` 作为可复制模板
+
 ### 兼容性
 
 - v1.0.0 的六个命令（`login` / `courses` / `quiz` / `topics` / `res` / `fill`）**行为完全不变**

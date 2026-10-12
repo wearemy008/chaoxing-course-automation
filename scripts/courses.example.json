@@ -1,0 +1,17 @@
+{
+  "_说明": "复制本文件为 courses.json，填入你自己的课程三件套。courseId/clazzId/cpi 可从 `cx courses` 获取。courses.json 已被 .gitignore 排除，请勿提交。",
+  "bangong": {
+    "courseId": "填入你的 courseId",
+    "clazzId": "填入你的 clazzId",
+    "cpi": "填入你的 cpi",
+    "name": "办公空间设计",
+    "cls": "1班"
+  },
+  "kongjian": {
+    "courseId": "填入你的 courseId",
+    "clazzId": "填入你的 clazzId",
+    "cpi": "填入你的 cpi",
+    "name": "空间数字化表现",
+    "cls": "2班"
+  }
+}

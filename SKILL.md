@@ -63,6 +63,10 @@ PY="C:/Users/admin/.workbuddy/binaries/python/envs/default/Scripts/python.exe"
 
 # ② 取课程三件套
 "$NODE" "$SK/cx-courses.mjs" --json=courses.json
+
+# ③ 配置课程（考试/任务/图谱脚本需要；复制模板后填入三件套）
+cp "$SK/courses.example.json" "$SK/courses.json"
+#    编辑 courses.json：每门课的 courseId / clazzId / cpi / name / cls
 ```
 
 后续命令统一形如：
@@ -70,6 +74,10 @@ PY="C:/Users/admin/.workbuddy/binaries/python/envs/default/Scripts/python.exe"
 ```bash
 "$NODE" "$SK/<命令>.mjs" <子命令> --course=<courseId> --cpi=<cpi> [--clazz=<clazzId>] [...]
 ```
+
+> 考试 / 任务引擎 / 图谱脚本以 `courses.json` 里的**课程别名**为第一参数（如 `bangong`），
+> 你可以在 `courses.json` 里用任意别名映射到自己的课程。
+> `courses.json` 含个人 courseId，已被 `.gitignore` 排除，**请勿提交**。
 
 ---
 
@@ -141,11 +149,11 @@ ITEMS = [
 
 ```bash
 # ① 组卷（默认 单选 20×4 + 多选 5×4 = 100 分）
-"$NODE" "$SK/cx-exam-build.mjs" bangong 20 5 4
-# → 输出 exam4-bangong.json，取其中的 paperId
+"$NODE" "$SK/cx-exam-build.mjs" <课程别名> 20 5 4
+# → 输出 exam4-<别名>.json，取其中的 paperId
 
 # ② 发布到班级（0 小时后开始，限时 90 分钟，7 天后 23:59 截止）
-"$NODE" "$SK/cx-exam-publish.mjs" bangong <paperId> 0 90 7
+"$NODE" "$SK/cx-exam-publish.mjs" <课程别名> <paperId> 0 90 7
 ```
 
 要点：
@@ -156,7 +164,7 @@ ITEMS = [
 ### E. 🆕 任务引擎发布
 
 ```bash
-"$NODE" "$SK/cx-task-publish.mjs" bangong 1 10     # 发布第 1~10 章任务
+"$NODE" "$SK/cx-task-publish.mjs" <课程别名> 1 10     # 发布第 1~10 章任务
 ```
 
 已发布且目标数 > 0 的任务**自动跳过**（幂等）。脚本会回读 `publishStatus` + `taskStudentsNumber` 确认。
@@ -164,13 +172,13 @@ ITEMS = [
 ### F. 🆕 知识图谱建设
 
 ```bash
-# ① 准备两个输入：
-#    - <course>-graph-data.json  章节正文抽取的 sections（no/name/key/goal/hard）
-#    - mapdata-<course>.json     图谱页面抓的节点树（nodes[].{name,topicid,level}）
-# ② 生成填充 JSON
-"$PY" "$SK/gen-graph.py"                 # 输出 <course>-graph-fill.json
+# ① 准备两个输入（见 gen-graph.py 顶部说明）：
+#    - graph-data-<别名>.json  章节内容（no/name/key/goal/hard），来源：你自己的大纲/教案
+#    - mapdata-<别名>.json     图谱节点树（nodes[].{topicid,name,level}），从图谱页 dump
+# ② 生成填充 JSON（questions/targets 请按自己课程填写）
+"$PY" "$SK/gen-graph.py" --course <别名>
 # ③ 写入图谱
-"$NODE" "$SK/cx-graph-fill.mjs" bangong
+"$NODE" "$SK/cx-graph-fill.mjs" <别名>
 ```
 
 写入内容：
@@ -199,6 +207,8 @@ ITEMS = [
 | `CX_PW` | `playwright-core` 安装路径（skill 自带 node_modules 缺失时兜底） |
 | `CX_HEADFUL=1` | 显示浏览器窗口（默认无头），调试时强烈建议开 |
 | `CX_SLOW=1` | 全部等待 ×1.8，网络慢时开 |
+| `CX_COURSES` | 课程配置文件路径，默认 `<skill>/scripts/courses.json` |
+| `CX_GRAPH_LABELS` | 覆盖图谱标签 id（JSON，如 `{"zhongdian":"24283664"}`） |
 | `CODEBUDDY_SAFE_DELETE_BULK_THRESHOLD` | 跑长批量合成时设 `100000`，避免被本机删除守卫中途杀掉 |
 
 ## 目录结构
@@ -218,6 +228,8 @@ chaoxing-course-automation/
 │   └── api.md                       ★ 所有逆向结论：URL 表 / 选择器 / 参数语义 / 40 条踩坑
 └── scripts/
     ├── cx.mjs                       公共库：登录态 / 导航 / 章节安全写入 / 智能导入
+    ├── cx-config.mjs                🆕 课程配置加载（courses.json）
+    ├── courses.example.json         🆕 课程配置模板（复制为 courses.json）
     ├── cx-login.mjs                 扫码登录
     ├── cx-courses.mjs               课程三件套
     ├── cx-fill.mjs                  章节正文批量安全追加
@@ -230,7 +242,7 @@ chaoxing-course-automation/
     ├── cx-exam-publish.mjs          🆕 发布试卷到班级
     ├── cx-task-publish.mjs          🆕 任务引擎批量发布
     ├── cx-graph-fill.mjs            🆕 知识图谱六板块填充
-    ├── gen-graph.py                 🆕 图谱填充 JSON 生成
+    ├── gen-graph.py                 🆕 图谱填充 JSON 生成（通用模板）
     ├── make_video.py                🆕 单集讲解视频合成
     ├── video_all.py                 🆕 批量合成（断点续跑）
     ├── video_manifest.example.py    🆕 视频清单模板

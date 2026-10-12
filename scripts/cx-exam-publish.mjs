@@ -1,5 +1,5 @@
-/** 发布考试到班级（完整版）
- *  用法: node exam-publish.mjs <course> <paperId> [startOffsetDays] [limitMinutes] [endOffsetDays]
+/** 发布考试到班级
+ *  用法: node cx-exam-publish.mjs <course> <paperId> [startOffsetHours] [limitMinutes] [endOffsetDays]
  *  输出: exam-published-<course>.json
  *
  *  链路：
@@ -8,11 +8,14 @@
  *   3. 点 #confirmchoose 确认 → 生成 .selectClass > a[data=clazzid][publishtype=0]
  *   4. 填截止时间（时间控件需 setter + dispatchEvent）
  *   5. 调 window.publishpaper(true) → POST /mooc2-ans/exam/test/publish
+ *
+ *  ⚠️ 课程三件套来自 scripts/courses.json（参考 courses.example.json）。
  */
 import { chromium } from 'playwright-core';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadCourse } from './cx-config.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CHROME = process.env.CX_CHROME || 'C:\\Users\\admin\\.agent-browser\\browsers\\chrome-152.0.7977.82\\chrome.exe';
@@ -21,16 +24,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const pad = (n) => String(n).padStart(2, '0');
 const fmt = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 
-const COURSE = (process.argv[2] || 'bangong').trim();
+const COURSE = (process.argv[2] || '').trim();
+const CFG = loadCourse(COURSE);
+if (!CFG) { console.error(`未知课程「${COURSE}」：请在 scripts/courses.json 中配置（参考 courses.example.json）`); process.exit(1); }
 const PAPER = process.argv[3] || '';
 const START_OFF = parseFloat(process.argv[4] || '0');
 const LIMIT = parseInt(process.argv[5] || '90', 10);
 const END_OFF = parseFloat(process.argv[6] || '7');
-const CMAP = {
-  bangong: { c: '265670555', k: '156694092', p: '110496162', name: '办公空间设计', cls: '1班' },
-  kongjian: { c: '265670558', k: '156695612', p: '110496162', name: '空间数字化表现', cls: '2班' },
-};
-const CFG = CMAP[COURSE];
 
 const now = new Date();
 const startTime = new Date(now.getTime() + START_OFF * 3600 * 1000);
@@ -54,7 +54,7 @@ p.on('response', async (r) => {
   }
 });
 
-const PUB_URL = `https://mooc2-ans.chaoxing.com/mooc2-ans/exam/test/topublish?taskid=0&clazzid=${CFG.k}&courseid=${CFG.c}&ut=t&cpi=${CFG.p}&paperid=${PAPER}&score=100.0`;
+const PUB_URL = `https://mooc2-ans.chaoxing.com/mooc2-ans/exam/test/topublish?taskid=0&clazzid=${CFG.clazzId}&courseid=${CFG.courseId}&ut=t&cpi=${CFG.cpi}&paperid=${PAPER}&score=100.0`;
 await p.goto(PUB_URL, { waitUntil: 'domcontentloaded', timeout: 90000 });
 await sleep(10000);
 OUT.steps.push({ s: 'loaded', url: p.url().slice(0, 200) });
@@ -73,7 +73,7 @@ const pick = await p.evaluate((cid) => {
     if (chk) { chk.click(); return 'clicked:' + chk.className; }
   }
   return 'no-check';
-}, CFG.k);
+}, CFG.clazzId);
 OUT.steps.push({ s: 'pick', r: pick });
 await sleep(1500);
 

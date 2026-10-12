@@ -1,30 +1,29 @@
-/** 考试组卷 v4：真实 fill 填表 + 调页面原生 send(1) 直连提交 + 轮询任务状态
- *  用法: node exam-build4.mjs <course> [题目|sN] [多选] [判断]
+/** 考试组卷：真实 fill 填表 + 调页面原生 send(1) 直连提交 + 轮询任务状态
+ *  用法: node cx-exam-build.mjs <course> [单选数] [多选数] [单选分值]
  *  输出: exam4-<course>.json
  *
  *  关键点：
  *   - 分值 = 该题型「整块总分」，各块之和必须 = 满分（页面强校验 totalScoreId === totalScoreIdV2）
  *   - chooseType=1 → send() 内不弹确认框，直接 randomPaper()
- *   - 只提交「可见」题型（div[id$=_TypeDiv]:visible）；判断题块默认隐藏，若题量填了但块隐藏则无效
+ *   - 只提交「可见」题型（div[id$=_TypeDiv] 且 offsetParent!=null）；判断题块默认隐藏
  *   - randomPaper 异步 → taskId，须轮询 /mooc2-ans/exam/autopapertask-status 拿 paperId
+ *
+ *  ⚠️ 课程三件套来自课程配置文件（见 scripts/courses.example.json），不要把真实 courseId 提交进仓库。
  */
 import { chromium } from 'playwright-core';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadCourse } from './cx-config.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CHROME = process.env.CX_CHROME || 'C:\\Users\\admin\\.agent-browser\\browsers\\chrome-152.0.7977.82\\chrome.exe';
 const STATE = process.env.CX_STATE || path.join(__dirname, 'auth-state.json');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const COURSE = (process.argv[2] || 'bangong').trim();
-const CMAP = {
-  bangong: { c: '265670555', k: '156694092', cls: '1班', p: '110496162', name: '办公空间设计' },
-  kongjian: { c: '265670558', k: '156695612', cls: '2班', p: '110496162', name: '空间数字化表现' },
-};
-const CFG = CMAP[COURSE];
-if (!CFG) { console.error('unknown course'); process.exit(1); }
+const COURSE = (process.argv[2] || '').trim();
+const CFG = loadCourse(COURSE);
+if (!CFG) { console.error(`未知课程「${COURSE}」：请在 scripts/courses.json 中配置（参考 courses.example.json）`); process.exit(1); }
 
 // 题型配置：[题量, 整块总分]
 const N_S = parseInt(process.argv[3] || '20', 10);
@@ -53,7 +52,7 @@ p.on('response', async (r) => {
   }
 });
 
-const URL = `https://mooc2-ans.chaoxing.com/mooc2-ans/exam/toAutoCreatePaperPage?courseid=${CFG.c}&classid=${CFG.k}&cpi=${CFG.p}&pid=0&position=test&createPaperType=1&editPaperTemplate=true&ut=t`;
+const URL = `https://mooc2-ans.chaoxing.com/mooc2-ans/exam/toAutoCreatePaperPage?courseid=${CFG.courseId}&classid=${CFG.clazzId}&cpi=${CFG.cpi}&pid=0&position=test&createPaperType=1&editPaperTemplate=true&ut=t`;
 await p.goto(URL, { waitUntil: 'domcontentloaded', timeout: 90000 });
 await sleep(14000);
 

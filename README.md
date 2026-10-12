@@ -71,7 +71,11 @@ node bin/cx.js login
 # ② 列出课程，拿 courseId / cpi（clazzId 可省略，命令运行时自动补全）
 node bin/cx.js courses
 
-# ③ 之后任意命令
+# ③ 配置课程（考试 / 任务 / 图谱脚本需要）
+cp scripts/courses.example.json scripts/courses.json
+#    编辑 courses.json，填入你的 courseId / clazzId / cpi
+
+# ④ 之后任意命令
 node bin/cx.js fill   --course=123456789 --cpi=110000000 --map=chapter-map.json --marker=本章拓展资源
 node bin/cx.js quiz   view --course=123456789 --cpi=110000000
 node bin/cx.js video  upload --course=bangong --from=1 --to=10
@@ -80,13 +84,17 @@ node bin/cx.js task   publish bangong 1 10
 node bin/cx.js graph  fill   bangong
 ```
 
+> 考试 / 任务引擎 / 图谱脚本以 `courses.json` 里的**课程别名**为第一参数（示例用 `bangong`），
+> 你可以在 `courses.json` 里用任意别名映射到自己的课程。
+> `courses.json` 含个人 courseId，已被 `.gitignore` 排除，**请勿提交**。
+
 ## 三条安全设计（重要）
 
 1. **章节正文只追加、不覆盖。** 教师手动上传的 PPT / 视频以 iframe 形式存在于正文 HTML 里，所有写入走三态策略：已含标记→跳过（幂等可重跑）/ 正文为空→写入 / 非空→`原文 + <hr/> + 新内容` 追加。
 2. **题库导入后强制回读复核。** 批量导入时章节文件夹选中可能丢失（实测出现过单章重复 16 题、另一章 0 题），`quiz view` 会对比总题数与各章题数并告警。
 3. **视频上传后强制终验。** 视频判据是 `ans-insertvideo` 而非 `taskIframe`，且点「确认」后须等 iframe 消失，否则内容不落盘。`video verify` 逐节点回读三类媒体计数。
 
-环境变量：`CX_CHROME`（指定 chrome.exe）、`CX_STATE`（登录态路径）、`CX_HEADFUL=1`（可见窗口调试）、`CX_SLOW=1`（放慢 1.8 倍）、`CODEBUDDY_SAFE_DELETE_BULK_THRESHOLD=100000`（长批量合成时避免被删除守卫中断）。
+环境变量：`CX_CHROME`（指定 chrome.exe）、`CX_STATE`（登录态路径）、`CX_COURSES`（课程配置路径）、`CX_HEADFUL=1`（可见窗口调试）、`CX_SLOW=1`（放慢 1.8 倍）、`CX_GRAPH_LABELS`（覆盖图谱标签 id）、`CODEBUDDY_SAFE_DELETE_BULK_THRESHOLD=100000`（长批量合成时避免被删除守卫中断）。
 
 ## 目录结构
 
@@ -94,6 +102,8 @@ node bin/cx.js graph  fill   bangong
 ├── bin/cx.js            CLI 统一入口
 ├── scripts/
 │   ├── cx.mjs                   公共库：登录态/导航/章节安全写入/智能导入
+│   ├── cx-config.mjs            课程配置加载（courses.json）
+│   ├── courses.example.json     课程配置模板
 │   ├── cx-login.mjs             扫码登录
 │   ├── cx-courses.mjs           课程三件套
 │   ├── cx-fill.mjs              章节正文批量安全追加
