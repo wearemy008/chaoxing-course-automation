@@ -138,9 +138,11 @@ ITEMS = [
 
 **第二步：上传挂载**
 
+先准备 `scripts/video-plan.json`（复制 `video-plan.example.json`），填 `videoDir` / 各章节点 id / 上传清单：
+
 ```bash
-"$NODE" "$SK/cx-video-upload.mjs" --course=bangong --from=1 --to=10
-"$NODE" "$SK/cx-video-verify.mjs" --course=bangong     # ★ 必须终验
+"$NODE" "$SK/cx-video-upload.mjs" --plan=video-plan.json --course=bangong --from=1 --to=10
+"$NODE" "$SK/cx-video-verify.mjs" --plan=video-plan.json --course=bangong   # ★ 必须终验
 ```
 
 视频与课件 PPT **可共存于同一节**（一个是 `module="insertvideo"`，一个是 `module="insertdoc"`）。
@@ -230,6 +232,7 @@ chaoxing-course-automation/
     ├── cx.mjs                       公共库：登录态 / 导航 / 章节安全写入 / 智能导入
     ├── cx-config.mjs                🆕 课程配置加载（courses.json）
     ├── courses.example.json         🆕 课程配置模板（复制为 courses.json）
+    ├── video-plan.example.json      🆕 视频上传计划模板（复制为 video-plan.json）
     ├── cx-login.mjs                 扫码登录
     ├── cx-courses.mjs               课程三件套
     ├── cx-fill.mjs                  章节正文批量安全追加

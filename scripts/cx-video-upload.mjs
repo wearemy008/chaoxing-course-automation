@@ -2,26 +2,36 @@
  * 教学视频批量上传（章节挂载版）
  *
  * 策略：视频追加挂载到「该章已存放 PPT 的同一个节节点」正文里（同章课件合并呈现）
- *   办公第N章 → PPT 所在节点（k1 知识点）→ 追加「本章视频」+ 视频 iframe
- *   空间第N章 → 同理
  *
- * 流程（复用 ppt-batch.mjs 已验证链路）：
+ * 流程：
  *   开编辑器 → 激活 UE(✏) → getContent 读原文（幂等标记 VIDEO::xxx）→
- *   真实点 .ans-command-insertdoc → insertdoc iframe → setInputFiles →
- *   轮询 ananas/status 含本文件名 → 点确定 → 校验 taskIframe 增量 → savecard
+ *   真实点 .ans-command-insertvideo → insertvideo iframe →
+ *   setInputFiles（★ input[name=file][accept*=video]，页面有两个同名 input）→
+ *   轮询帧内「完成」/100% → 点确认 → ★ 等 insertvideo iframe 消失 →
+ *   校验媒体块增量 → 埋幂等标记 → savecard
  *
- * 用法：node video-batch.mjs [--course=bangong|kongjian] [--from=N] [--to=N] [--only=01]
+ * 用法：node cx-video-upload.mjs --plan=video-plan.json [--course=<别名>] [--from=N] [--to=N] [--only=关键词]
+ *
+ * —— video-plan.json 格式（参考 video-plan.example.json）——
+ *   {
+ *     "videoDir": "D:/我的课程/视频成品",
+ *     "nodes": { "bangong": { "1": "该章PPT所在节点id", "2": "该章PPT所在节点id" } },
+ *     "plan": [ ["bangong", 1, "课程名-01-第一集.mp4"], ["bangong", 2, "课程名-02-第二集.mp4"] ]
+ *   }
+ *   课程别名 → 三件套来自 scripts/courses.json
+ *   节点 id：该章 PPT 所在节点（避免 PPT+视频分散在不同节点）
+ *
  * 幂等：正文已含 VIDEO::<name> 标记则跳过
  */
 import { chromium } from 'playwright-core';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadCourse } from './cx-config.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STATE = process.env.CX_STATE || path.join(__dirname, 'auth-state.json');
 const CHROME = process.env.CX_CHROME || 'C:\\Users\\admin\\.agent-browser\\browsers\\chrome-152.0.7977.82\\chrome.exe';
-const VIDEO_DIR = 'D:\\workbuddy1\\26-27-1课程编排\\视频成品';
 const RESULT = path.join(__dirname, 'video-upload-result.json');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -30,55 +40,16 @@ const args = Object.fromEntries(process.argv.slice(2).map((a) => {
   return m ? [m[1], m[2]] : [a.replace(/^--/, ''), true];
 }));
 
-const CFG = {
-  bangong:  { c: '265670555', k: '156694092', p: '110496162', name: '办公空间设计' },
-  kongjian: { c: '265670558', k: '156695612', p: '110496162', name: '空间数字化表现' },
-};
-
-// 第N章 → 挂载节点ID（= 该章 PPT 所在节点，避免 PPT+视频分散）
-const NODES = {
-  bangong: {
-    1: '1231342532', 2: '1231339466', 3: '1231339472', 4: '1231339478', 5: '1231339484',
-    6: '1231339490', 7: '1231339496', 8: '1231339502', 9: '1231339508', 10: '1231339514',
-    // 第7、8章各 2 集视频 → 都追加到同一节点（3、4 集合并）
-  },
-  kongjian: {
-    1: '1229280785', 2: '1229283191', 3: '1229289628', 4: '1229290900', 5: '1229300851',
-    6: '1229302941', 7: '1229305603', 8: '1229308671', 9: '1229337499', 10: '1229338039',
-    11: '1229339181',
-  },
-};
-
-// 视频 → (课程, 章号, 文件名)
-const PLAN = [
-  // 办公 12 集
-  ['bangong', 1,  '办公空间设计-01-办公空间的前世今生.mp4'],
-  ['bangong', 2,  '办公空间设计-02-如何科学组织办公空间.mp4'],
-  ['bangong', 3,  '办公空间设计-03-界面色彩与材质.mp4'],
-  ['bangong', 4,  '办公空间设计-04-家具照明陈设.mp4'],
-  ['bangong', 5,  '办公空间设计-05-开放办公区与会议空间设计.mp4'],
-  ['bangong', 6,  '办公空间设计-06-管理层空间与共享休闲空间.mp4'],
-  ['bangong', 7,  '办公空间设计-07-Enscape材质与灯光参数精讲.mp4'],
-  ['bangong', 7,  '办公空间设计-08-效果图构图与氛围营造.mp4'],   // 第7章第2集
-  ['bangong', 8,  '办公空间设计-09-AI概念生成与提示词工程.mp4'],
-  ['bangong', 8,  '办公空间设计-10-AI材质优化与人机协同.mp4'],   // 第8章第2集
-  ['bangong', 9,  '办公空间设计-11-施工图与规范.mp4'],
-  ['bangong', 10, '办公空间设计-12-真题真做完整流程.mp4'],
-  // 空间 13 集
-  ['kongjian', 1,  '空间数字化表现-01-数字化表现的过去现在与未来.mp4'],
-  ['kongjian', 2,  '空间数字化表现-02-SketchUp绘图与编辑工具.mp4'],
-  ['kongjian', 2,  '空间数字化表现-03-小房子建模全流程.mp4'],   // 第2章第2集
-  ['kongjian', 3,  '空间数字化表现-04-从CAD图纸到三维户型.mp4'],
-  ['kongjian', 4,  '空间数字化表现-05-家具建模与细部构造.mp4'],
-  ['kongjian', 5,  '空间数字化表现-06-材质与贴图表现.mp4'],
-  ['kongjian', 6,  '空间数字化表现-07-灯光与场景营造.mp4'],
-  ['kongjian', 7,  '空间数字化表现-08-Enscape渲染与构图.mp4'],
-  ['kongjian', 8,  '空间数字化表现-09-动画漫游与VR.mp4'],
-  ['kongjian', 9,  '空间数字化表现-10-AI概念生成与提示词工程.mp4'],
-  ['kongjian', 9,  '空间数字化表现-11-AI材质优化与人机协同.mp4'], // 第9章第2集
-  ['kongjian', 10, '空间数字化表现-12-居住空间综合项目.mp4'],
-  ['kongjian', 11, '空间数字化表现-13-商业空间综合项目.mp4'],
-];
+const PLAN_FILE = args.plan || process.env.CX_VIDEO_PLAN || path.join(__dirname, 'video-plan.json');
+if (!fs.existsSync(PLAN_FILE)) {
+  console.error(`未找到上传计划：${PLAN_FILE}`);
+  console.error('请复制 scripts/video-plan.example.json 为 video-plan.json 并填写（格式见本文件顶部说明）。');
+  process.exit(1);
+}
+const J = JSON.parse(fs.readFileSync(PLAN_FILE, 'utf8'));
+const VIDEO_DIR = J.videoDir || process.env.CX_VIDEO_DIR || path.join(__dirname, '..', '视频成品');
+const NODES = J.nodes || {};
+const PLAN = J.plan || [];
 
 let TARGETS = PLAN;
 if (args.course) TARGETS = TARGETS.filter((x) => x[0] === args.course);
@@ -96,9 +67,11 @@ for (const [course, ch, file] of TARGETS) {
   const key = file;
   if (res.done[key] && res.done[key].ok) { console.log(`跳过 ${file}（已完成）`); continue; }
 
-  const C = CFG[course];
-  const node = NODES[course][ch];
-  const FILE = path.join(VIDEO_DIR, file);
+  const C = loadCourse(course);
+  if (!C) { console.log(`✗ 未知课程别名「${course}」：请在 courses.json 中配置`); continue; }
+  const node = (NODES[course] || {})[ch];
+  if (!node) { console.log(`✗ 未在 video-plan.json 的 nodes.${course} 中配置第 ${ch} 章的节点 id`); continue; }
+  const FILE = path.isAbsolute(file) ? file : path.join(VIDEO_DIR, file);
   if (!fs.existsSync(FILE)) { console.log(`✗ 找不到文件 ${FILE}`); continue; }
   const sizeMB = Math.round(fs.statSync(FILE).size / 1048576);
   console.log(`\n===== ${C.name} 第${ch}章 ${file} (${sizeMB}MB) → 节点 ${node} =====`);
@@ -114,13 +87,14 @@ for (const [course, ch, file] of TARGETS) {
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36',
   });
   const page = await ctx.newPage();
+  const baseName = path.basename(file);
 
   let uploadedOid = null;
   page.on('response', async (r) => {
     try {
       if (/ananas\/status\/[0-9a-f]{24,}/.test(r.url())) {
         const body = await r.text();
-        if (body.includes('"filename":"' + file + '"')) {
+        if (body.includes('"filename":"' + baseName + '"')) {
           const m = body.match(/"objectid":"([0-9a-f]+)"/);
           if (m) uploadedOid = m[1];
         }
@@ -129,7 +103,7 @@ for (const [course, ch, file] of TARGETS) {
   });
 
   try {
-    await page.goto(`https://mooc1.chaoxing.com/edit/chapters/${C.c}/${node}?classId=${C.k}&cpi=${C.p}&newMooc=true&mooc2=1`,
+    await page.goto(`https://mooc1.chaoxing.com/edit/chapters/${C.courseId}/${node}?classId=${C.clazzId}&cpi=${C.cpi}&newMooc=true&mooc2=1`,
       { waitUntil: 'domcontentloaded', timeout: 90000 });
     await sleep(9000);
 
@@ -154,9 +128,9 @@ for (const [course, ch, file] of TARGETS) {
     entry.steps.ueReady = true;
 
     // 幂等
-    const marker = `VIDEO::${file}`;
+    const marker = `VIDEO::${baseName}`;
     const before = await page.evaluate(() => window.UE.instants.ueditorInstant0.getContent() || '');
-    if (before.includes(marker) || before.includes(file)) {
+    if (before.includes(marker) || before.includes(baseName)) {
       entry.ok = true; entry.steps.skipped = 'already-uploaded';
       const r2 = loadResult(); r2.done[key] = entry; saveResult(r2);
       console.log('  已有该视频，跳过');
@@ -313,7 +287,7 @@ for (const [course, ch, file] of TARGETS) {
     entry.error = (e.message || '').slice(0, 300);
     const r4 = loadResult(); r4.done[key] = entry; saveResult(r4);
     console.log('  ✗ ' + entry.error);
-    await page.screenshot({ path: path.join(__dirname, `vup-fail-${file.slice(0, 20)}.png`) }).catch(() => {});
+    await page.screenshot({ path: path.join(__dirname, `vup-fail-${baseName.slice(0, 20)}.png`) }).catch(() => {});
   }
   await browser.close();
 }

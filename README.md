@@ -78,7 +78,7 @@ cp scripts/courses.example.json scripts/courses.json
 # ④ 之后任意命令
 node bin/cx.js fill   --course=123456789 --cpi=110000000 --map=chapter-map.json --marker=本章拓展资源
 node bin/cx.js quiz   view --course=123456789 --cpi=110000000
-node bin/cx.js video  upload --course=bangong --from=1 --to=10
+node bin/cx.js video  upload --plan=video-plan.json --course=bangong --from=1 --to=10
 node bin/cx.js exam   build  bangong 20 5 4
 node bin/cx.js task   publish bangong 1 10
 node bin/cx.js graph  fill   bangong
@@ -104,6 +104,7 @@ node bin/cx.js graph  fill   bangong
 │   ├── cx.mjs                   公共库：登录态/导航/章节安全写入/智能导入
 │   ├── cx-config.mjs            课程配置加载（courses.json）
 │   ├── courses.example.json     课程配置模板
+│   ├── video-plan.example.json  视频上传计划模板
 │   ├── cx-login.mjs             扫码登录
 │   ├── cx-courses.mjs           课程三件套
 │   ├── cx-fill.mjs              章节正文批量安全追加

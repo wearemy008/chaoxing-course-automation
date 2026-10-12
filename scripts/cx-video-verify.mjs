@@ -1,30 +1,43 @@
 /**
  * 终验：读取全部挂载节点正文，统计 insertvideo 模块与视频文件名
- * 用法: node video-verify.mjs
+ * 用法: node cx-video-verify.mjs [--plan=video-plan.json]
+ *
+ * 读取 video-plan.json 的 nodes（第N章 → 节点 id），逐节点回读正文，
+ * 统计「视频 / 课件 / 图片」计数并落 video-verify.json。
+ * 课程三件套来自 scripts/courses.json。
  */
 import { chromium } from 'playwright-core';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadCourse } from './cx-config.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STATE = process.env.CX_STATE || path.join(__dirname, 'auth-state.json');
 const CHROME = process.env.CX_CHROME || 'C:\\Users\\admin\\.agent-browser\\browsers\\chrome-152.0.7977.82\\chrome.exe';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const CFG = {
-  bangong:  { c: '265670555', k: '156694092', p: '110496162', name: '办公空间设计' },
-  kongjian: { c: '265670558', k: '156695612', p: '110496162', name: '空间数字化表现' },
-};
-const NODES = {
-  bangong: { 1: '1231342532', 2: '1231339466', 3: '1231339472', 4: '1231339478', 5: '1231339484', 6: '1231339490', 7: '1231339496', 8: '1231339502', 9: '1231339508', 10: '1231339514' },
-  kongjian: { 1: '1229280785', 2: '1229283191', 3: '1229289628', 4: '1229290900', 5: '1229300851', 6: '1229302941', 7: '1229305603', 8: '1229308671', 9: '1229337499', 10: '1229338039', 11: '1229339181' },
-};
+const args = Object.fromEntries(process.argv.slice(2).map((a) => {
+  const m = a.match(/^--([^=]+)=(.*)$/);
+  return m ? [m[1], m[2]] : [a.replace(/^--/, ''), true];
+}));
+const PLAN_FILE = args.plan || process.env.CX_VIDEO_PLAN || path.join(__dirname, 'video-plan.json');
+if (!fs.existsSync(PLAN_FILE)) {
+  console.error(`未找到计划文件：${PLAN_FILE}（请参考 scripts/video-plan.example.json 创建）`);
+  process.exit(1);
+}
+const PLAN = JSON.parse(fs.readFileSync(PLAN_FILE, 'utf8'));
+const NODES = PLAN.nodes || {};
+const COURSES = Object.keys(NODES);
+
+let COURSES_FILTER = COURSES;
+if (args.course) COURSES_FILTER = COURSES.filter((k) => k === args.course);
 
 const OUT = { ts: new Date().toISOString(), courses: {}, totalVideos: 0, totalDocs: 0, totalImages: 0 };
 
-for (const key of ['bangong', 'kongjian']) {
-  const C = CFG[key];
+for (const key of COURSES_FILTER) {
+  const C = loadCourse(key);
+  if (!C) { console.log(`跳过 ${key}（courses.json 未配置）`); continue; }
   console.log(`\n===== ${C.name} =====`);
   const browser = await chromium.launch({
     executablePath: CHROME, headless: true,
@@ -40,7 +53,7 @@ for (const key of ['bangong', 'kongjian']) {
 
   for (const [ch, node] of Object.entries(NODES[key])) {
     try {
-      await page.goto(`https://mooc1.chaoxing.com/edit/chapters/${C.c}/${node}?classId=${C.k}&cpi=${C.p}&newMooc=true&mooc2=1`,
+      await page.goto(`https://mooc1.chaoxing.com/edit/chapters/${C.courseId}/${node}?classId=${C.clazzId}&cpi=${C.cpi}&newMooc=true&mooc2=1`,
         { waitUntil: 'domcontentloaded', timeout: 90000 });
       await sleep(7000);
       // 激活 UE

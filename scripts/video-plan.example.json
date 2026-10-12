@@ -1,0 +1,15 @@
+{
+  "_说明": "复制本文件为 video-plan.json，填入你的视频目录、各章节点 id 与上传清单。video-plan.json 已被 .gitignore 排除。",
+  "videoDir": "D:/我的课程/视频成品",
+  "nodes": {
+    "_说明": "课程别名（同 courses.json）→ { 第N章: 该章 PPT 所在节点 id }。节点 id 从章节编辑器 URL 或章节树读取。",
+    "bangong": {
+      "1": "填入第1章的节点 id",
+      "2": "填入第2章的节点 id"
+    }
+  },
+  "plan": [
+    ["bangong", 1, "我的课程-01-第一集.mp4"],
+    ["bangong", 2, "我的课程-02-第二集.mp4"]
+  ]
+}

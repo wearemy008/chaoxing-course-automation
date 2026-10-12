@@ -22,6 +22,7 @@ pdf/
 auth-state.json
 courses.json
 *-graph-fill.json
+video-plan.json
 *-result.json
 *-progress.json
 *roster*.json

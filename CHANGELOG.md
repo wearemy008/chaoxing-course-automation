@@ -73,6 +73,7 @@
 
 - 全部脚本支持 `CX_CHROME` / `CX_STATE` / `CX_COURSES` 环境变量，路径不再硬编码
 - 新增 `scripts/cx-config.mjs` + `courses.example.json`：课程三件套改为从 `courses.json` 读取（已 gitignore）
+- 新增 `video-plan.example.json`：视频上传的目录/节点/清单外置（`cx-video-upload.mjs` / `cx-video-verify.mjs` 由 `--plan` 驱动）
 - `gen-graph.py` 重写为通用模板（去项目专属逻辑），`video_all.py` 课程键从 manifest 动态推导
 - `video_manifest.example.py` / `courses.example.json` 作为可复制模板
 
