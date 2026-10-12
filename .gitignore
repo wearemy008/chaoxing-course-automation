@@ -1,7 +1,25 @@
 node_modules/
 state/
 *.log
-_videowork/
 _work/
-__pycache/
+_videowork/
+__pycache__/
+*.pyc
 .DS_Store
+
+# 生成物
+视频成品/
+视频脚本/
+pdf/
+*.mp4
+*.srt
+*.wav
+*.mp3
+*.png
+!assets/*.png
+
+# 登录态与个人数据（含 Cookie，切勿提交）
+auth-state.json
+*-result.json
+*-progress.json
+*roster*.json

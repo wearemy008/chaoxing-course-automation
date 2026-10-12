@@ -1,7 +1,7 @@
 {
   "name": "chaoxing-course-automation",
-  "version": "1.0.0",
-  "description": "超星泛雅/学习通教师端课程自动化 CLI：建章节、批量写正文、智能导入题库、发布讨论话题、平台资源检索入库",
+  "version": "3.0.0",
+  "description": "超星泛雅/学习通教师端课程全流程自动化 CLI：建章节、写正文、挂课件视频、导题库、发考试、发布任务、建知识图谱，以及分镜脚本+课件PDF→配音讲解视频合成",
   "license": "MIT",
   "type": "module",
   "bin": {
@@ -18,7 +18,8 @@
     "node": ">=18"
   },
   "keywords": [
-    "chaoxing", "chaoxing", "fanya", "moodle", "playwright",
-    "course-automation", "quiz-import", "education", "cli"
+    "chaoxing", "fanya", "xuexitong", "moodle", "playwright",
+    "course-automation", "quiz-import", "exam", "knowledge-graph",
+    "video-generation", "tts", "edge-tts", "ffmpeg", "education", "cli"
   ]
 }
